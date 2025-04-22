@@ -7,17 +7,16 @@ struct ContentView: View {
     @State private var statusMessage = "👋 Ready for gestures"
     @State private var gesturePath: [CGPoint] = []
     @State private var ayaResponse: String = ""
+    @State private var showAnalysis = false
 
     var body: some View {
         ZStack {
             CameraPreviewView(cameraManager: cameraManager)
                 .onAppear {
-                    // 📸 Photo callback
                     cameraManager.onPhotoCaptured = { imageData in
                         uploadToAya(imageData: imageData)
                     }
 
-                    // 🎥 Video callback
                     cameraManager.onVideoSaved = { videoURL in
                         extractAndSendFrames(from: videoURL)
                     }
@@ -26,19 +25,16 @@ struct ContentView: View {
             // ✍️ Gesture trail
             Canvas { context, size in
                 guard gesturePath.count > 1 else { return }
-
                 var path = Path()
                 path.move(to: gesturePath.first!)
                 for point in gesturePath.dropFirst() {
                     path.addLine(to: point)
                 }
-
                 context.stroke(path, with: .color(.green), lineWidth: 4)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
 
-            // ✋ Gesture listeners
             GestureCaptureView(
                 onCapturePhoto: {
                     cameraManager.capturePhoto()
@@ -61,18 +57,42 @@ struct ContentView: View {
             VStack {
                 Spacer()
 
-                // 🧠 Aya Response
-                if !ayaResponse.isEmpty {
-                    Text("🧠 Aya Vision:\n\(ayaResponse)")
-                        .foregroundColor(.white)
-                        .font(.callout)
-                        .padding()
+                // 🧠 Aya Result Display (now dismissible)
+                if showAnalysis {
+                    VStack(spacing: 12) {
+                        Text("🧠 Aya Vision")
+                            .font(.headline)
+                            .foregroundColor(.white)
+
+                        ScrollView {
+                            Text(ayaResponse)
+                                .foregroundColor(.white)
+                                .font(.callout)
+                                .multilineTextAlignment(.leading)
+                                .padding()
+                        }
+                        .frame(maxHeight: 180)
                         .background(Color.black.opacity(0.6))
                         .cornerRadius(12)
-                        .padding(.horizontal)
+
+                        Button("Dismiss") {
+                            ayaResponse = ""
+                            showAnalysis = false
+                            statusMessage = "👋 Ready for gestures"
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white)
+                        .foregroundColor(.black)
+                        .cornerRadius(8)
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(20)
+                    .padding(.horizontal)
                 }
 
-                // 📘 Gesture Guide
+                // Gesture instructions
                 VStack(alignment: .leading, spacing: 6) {
                     Text("👆 Two-finger pull down → Capture Photo")
                     Text("↗️ Left-down to Right-up → Start Recording")
@@ -94,9 +114,9 @@ struct ContentView: View {
         }
     }
 
-    // 📤 Send image to Aya Vision
+    // 📤 Upload image to Aya server
     func uploadToAya(imageData: Data, completion: ((String?) -> Void)? = nil) {
-        guard let url = URL(string: "https://0fd0-2600-1700-6ec-9c00-b917-b3b3-1b01-736b.ngrok-free.app/analyze-image") else { return }
+        guard let url = URL(string: "https://e2fe-2600-1700-6ec-9c00-b917-b3b3-1b01-736b.ngrok-free.app/analyze-image") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -116,6 +136,8 @@ struct ContentView: View {
                let reply = result["response"] {
                 DispatchQueue.main.async {
                     self.ayaResponse = reply
+                    self.showAnalysis = true
+                    speaker.speak(reply)
                     completion?(reply)
                 }
             } else {
@@ -125,7 +147,7 @@ struct ContentView: View {
         }.resume()
     }
 
-    // 🎞️ Extract 3 frames from video and send each to Aya
+    // 🎞️ Extract 3 frames from video and analyze
     func extractAndSendFrames(from videoURL: URL) {
         let asset = AVAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
@@ -162,6 +184,8 @@ struct ContentView: View {
 
         group.notify(queue: .main) {
             self.ayaResponse = allCaptions.joined(separator: "\n")
+            self.showAnalysis = true
+            speaker.speak(self.ayaResponse)
         }
     }
 }
