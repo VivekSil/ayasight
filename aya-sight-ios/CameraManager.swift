@@ -55,7 +55,9 @@ class CameraManager: NSObject, ObservableObject {
 
     func startRecording() {
         guard !movieOutput.isRecording else { return }
-        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("video.mov")
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent("video-\(timestamp).mov")
+        print("🎥 Saving new video to: \(outputURL.lastPathComponent)")
         movieOutput.startRecording(to: outputURL, recordingDelegate: self)
     }
 
