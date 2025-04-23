@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var gesturePath: [CGPoint] = []
     @State private var ayaResponse: String = ""
     @State private var showAnalysis = false
+    @State private var showAnalysis = false
 
     var body: some View {
         ZStack {

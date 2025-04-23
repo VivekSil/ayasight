@@ -10,5 +10,10 @@ class SpeechSynthesizer: ObservableObject {
         utterance.rate = 0.5
         synthesizer.speak(utterance)
     }
-}
 
+    func stop() {
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+    }
+}
