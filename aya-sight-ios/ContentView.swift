@@ -8,18 +8,20 @@ struct ContentView: View {
     @State private var gesturePath: [CGPoint] = []
     @State private var ayaResponse: String = ""
     @State private var showAnalysis = false
-    @State private var showAnalysis = false
+
+    @State private var selectedLanguage = "en"
+    let supportedLanguages = ["en", "es", "hi", "fr"]
 
     var body: some View {
         ZStack {
             CameraPreviewView(cameraManager: cameraManager)
                 .onAppear {
                     cameraManager.onPhotoCaptured = { imageData in
-                        uploadToAya(imageData: imageData)
+                        uploadToAya(imageData: imageData, language: selectedLanguage)
                     }
 
                     cameraManager.onVideoSaved = { videoURL in
-                        extractAndSendFrames(from: videoURL)
+                        extractAndSendFrames(from: videoURL, language: selectedLanguage)
                     }
                 }
 
@@ -39,17 +41,17 @@ struct ContentView: View {
             GestureCaptureView(
                 onCapturePhoto: {
                     cameraManager.capturePhoto()
-                    speaker.speak("Photo captured")
+                    speaker.speak("Photo captured", language: selectedLanguage)
                     statusMessage = "📸 Photo Captured"
                 },
                 onStartRecording: {
                     cameraManager.startRecording()
-                    speaker.speak("Recording started")
+                    speaker.speak("Recording started", language: selectedLanguage)
                     statusMessage = "🎥 Recording Started"
                 },
                 onStopRecording: {
                     cameraManager.stopRecording()
-                    speaker.speak("Recording stopped")
+                    speaker.speak("Recording stopped", language: selectedLanguage)
                     statusMessage = "🛑 Recording Stopped"
                 },
                 gesturePath: $gesturePath
@@ -58,7 +60,6 @@ struct ContentView: View {
             VStack {
                 Spacer()
 
-                // 🧠 Aya Result Display (now dismissible)
                 if showAnalysis {
                     VStack(spacing: 12) {
                         Text("🧠 Aya Vision")
@@ -93,7 +94,6 @@ struct ContentView: View {
                     .padding(.horizontal)
                 }
 
-                // Gesture instructions
                 VStack(alignment: .leading, spacing: 6) {
                     Text("👆 Two-finger pull down → Capture Photo")
                     Text("↗️ Left-down to Right-up → Start Recording")
@@ -104,6 +104,17 @@ struct ContentView: View {
                 .padding()
                 .background(Color.black.opacity(0.6))
                 .cornerRadius(10)
+
+                Picker("Language", selection: $selectedLanguage) {
+                    ForEach(supportedLanguages, id: \.self) { code in
+                        Text(languageName(for: code))
+                    }
+                }
+                .pickerStyle(.menu)
+                .foregroundColor(.white)
+                .padding(.horizontal)
+                .background(Color.black.opacity(0.6))
+                .cornerRadius(8)
 
                 Text(statusMessage)
                     .foregroundColor(.white)
@@ -116,15 +127,20 @@ struct ContentView: View {
     }
 
     // 📤 Upload image to Aya server
-    func uploadToAya(imageData: Data, completion: ((String?) -> Void)? = nil) {
-        guard let url = URL(string: "https://e2fe-2600-1700-6ec-9c00-b917-b3b3-1b01-736b.ngrok-free.app/analyze-image") else { return }
+    func uploadToAya(imageData: Data, language: String = "en", completion: ((String?) -> Void)? = nil) {
+        guard let url = URL(string: "https://bd0b-2600-1700-6ec-9c00-24fe-7335-1a6c-1147.ngrok-free.app/analyze-image") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
+        let promptText = "Describe this image in \(languageName(for: language))."
+
         var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(promptText)\r\n".data(using: .utf8)!)
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"image\"; filename=\"photo.jpg\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
@@ -138,7 +154,7 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     self.ayaResponse = reply
                     self.showAnalysis = true
-                    speaker.speak(reply)
+                    speaker.speak(reply, language: language)
                     completion?(reply)
                 }
             } else {
@@ -148,8 +164,8 @@ struct ContentView: View {
         }.resume()
     }
 
-    // 🎞️ Extract 3 frames from video and analyze
-    func extractAndSendFrames(from videoURL: URL) {
+    // 🎞️ Extract 3 frames and analyze with language
+    func extractAndSendFrames(from videoURL: URL, language: String = "en") {
         let asset = AVAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
@@ -168,7 +184,7 @@ struct ContentView: View {
                 if let cgImage = cgImage {
                     let image = UIImage(cgImage: cgImage)
                     if let imageData = image.jpegData(compressionQuality: 0.8) {
-                        uploadToAya(imageData: imageData) { caption in
+                        uploadToAya(imageData: imageData, language: language) { caption in
                             if let caption = caption {
                                 allCaptions.append("• \(caption)")
                             }
@@ -186,7 +202,16 @@ struct ContentView: View {
         group.notify(queue: .main) {
             self.ayaResponse = allCaptions.joined(separator: "\n")
             self.showAnalysis = true
-            speaker.speak(self.ayaResponse)
+            speaker.speak(self.ayaResponse, language: language)
+        }
+    }
+
+    func languageName(for code: String) -> String {
+        switch code {
+            case "es": return "Spanish"
+            case "hi": return "Hindi"
+            case "fr": return "French"
+            default: return "English"
         }
     }
 }
